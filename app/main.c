@@ -12,7 +12,6 @@ int main(int argc, char *argv[]) {
 	printf("Logs from your program will appear here!\n");
 
 	// Uncomment this block to pass the first stage
-	//
 	char *command = argv[3];
 	int child_pid = fork();
 	if (child_pid == -1) {
@@ -25,8 +24,8 @@ int main(int argc, char *argv[]) {
 	    execv(command, &argv[3]);
 	} else {
 		   // We're in parent
-		   wait(NULL);
-		   printf("Child terminated");
+	    wait(NULL);
+	    printf("Child terminated");
 	}
 
 	return 0;
