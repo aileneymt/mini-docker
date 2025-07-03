@@ -8,10 +8,7 @@ int main(int argc, char *argv[]) {
 	setbuf(stdout, NULL);
  	setbuf(stderr, NULL);
 
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	printf("Logs from your program will appear here!\n");
 
-	// Uncomment this block to pass the first stage
 	char *command = argv[3];
 	int child_pid = fork();
 	if (child_pid == -1) {
