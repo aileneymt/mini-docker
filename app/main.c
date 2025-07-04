@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
 	int fd[2];
   if (pipe(fd) == -1) {
     // pipe failed
-    exit(1);
+    return 1;
   }
   
 
