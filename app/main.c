@@ -37,7 +37,10 @@ int main(int argc, char *argv[]) {
        int bytesRead = read(STDIN_FILENO, buffer, sizeof(buffer) - 1);
        buffer[bytesRead] = 0;
        printf("%s", buffer);
-		   wait(NULL);
+
+       int status;
+		   waitpid(child_pid, &status, 0);
+       return status;
 		   //printf("Child terminated");
 	}
 	return 0;
