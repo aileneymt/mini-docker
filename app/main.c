@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
+#include <string.h>
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 int main(int argc, char *argv[])
 {
@@ -11,18 +11,31 @@ int main(int argc, char *argv[])
 
   char *command = argv[3];
   int fd[2];
-  if (pipe(fd) == -1)
-  {
-    // pipe failed
+  if (pipe(fd) == -1) {
     return 1;
   }
 
+  char * shell_args[4];
+  shell_args[0] = "sh";
+  shell_args[1] = "-c";
+  shell_args[3] = NULL;
+
+  // assemble the full command
+  char full_cmd[1024] = {0};
+  for (int i = 3; i < argc; i++) {
+    strcat(full_cmd, argv[i]);
+    if (i != argc - 1) {
+      strcat(full_cmd, " ");
+    }
+  }
+  shell_args[2] = full_cmd;
+
   int child_pid = fork();
-  if (child_pid == -1)
-  {
+  if (child_pid == -1) {
     printf("Error forking!");
     return 1;
   }
+
   if (child_pid == 0)
   { // CHILD ------------------------------------
 
@@ -30,7 +43,7 @@ int main(int argc, char *argv[])
     dup2(fd[1], STDOUT_FILENO); // make stdout point to the write end of the pipe
     dup2(fd[1], STDERR_FILENO);
     // printf("FROM CHILD");
-    execvp(command, &argv[3]);
+    execvp("sh", shell_args);
 
   }
   else
@@ -47,7 +60,6 @@ int main(int argc, char *argv[])
     
     int status;
     waitpid(child_pid, &status, 0);
-    printf("Child exited with status: %d\n", WEXITSTATUS(status));
     return WEXITSTATUS(status);
   }
   return 0;
