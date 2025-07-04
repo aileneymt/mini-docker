@@ -4,6 +4,11 @@
 
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 int main(int argc, char *argv[]) {
+  
+  setbuf(stdout, NULL);
+ 	setbuf(stderr, NULL);
+	
+  char *command = argv[3];
 	int fd[2];
   if (pipe(fd) == -1) {
     // pipe failed
@@ -11,9 +16,6 @@ int main(int argc, char *argv[]) {
   }
   
 
-  setbuf(stdout, NULL);
- 	setbuf(stderr, NULL);
-	char *command = argv[3];
 	int child_pid = fork();
 	if (child_pid == -1) {
 	    printf("Error forking!");
@@ -31,7 +33,7 @@ int main(int argc, char *argv[]) {
        close(fd[1]); // close write end
        dup2(fd[0], STDIN_FILENO); // make STDIN point to the same thing as the pipes read end 
 		   wait(NULL);
-		   printf("Child terminated");
+		   //printf("Child terminated");
 	}
 	return 0;
 }
