@@ -15,7 +15,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   
-
 	int child_pid = fork();
 	if (child_pid == -1) {
 	    printf("Error forking!");
@@ -27,7 +26,7 @@ int main(int argc, char *argv[]) {
     dup2(fd[1], STDOUT_FILENO); // make stdout point to the write end of the pipe
     dup2(fd[1], STDERR_FILENO);
     //printf("FROM CHILD");
-    execv(command, &argv[3]);
+    execvp(command, &argv[3]);
     
 	} else {
 		   // We're in parent
