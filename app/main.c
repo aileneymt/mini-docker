@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
 
        int status;
 		   waitpid(child_pid, &status, 0);
-       return status;
+       return WEXITSTATUS(status);
 		   //printf("Child terminated");
 	}
 	return 0;
