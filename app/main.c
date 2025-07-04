@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
        close(fd[1]); // close write end
        dup2(fd[0], STDIN_FILENO); // make STDIN point to the same thing as the pipes read end 
        char buffer[128];
-       int bytesRead = read(STDIN_FILENO, buffer, 10);
+       int bytesRead = read(STDIN_FILENO, buffer, sizeof(buffer) - 1);
        buffer[bytesRead] = 0;
        printf("%s", buffer);
 		   wait(NULL);
