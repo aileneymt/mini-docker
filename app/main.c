@@ -73,18 +73,26 @@ char * find_binary(const char *binary) {
 // }
 int copy_file(const char *src_path, const char *dest_path)
 {
-  int src = open(src_path, O_RDONLY);
   int dest = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if (dest == -1) {
-    perror("Couldn't open file.");
+    perror("Couldn't open dest file.");
+    printf("Cant open dest file.\n");
     return -1;
   }
+  int src = open(src_path, O_RDONLY);
+  if (src == -1) {
+     printf("Can't open src file.\n");
+     perror("Couldn't open src file.");
+     close(dest);
+     return -1;
+  }
   char buffer[4096];
-  size_t bytesRead;
+  ssize_t bytesRead;
   while ((bytesRead = read(src, buffer, sizeof(buffer))) > 0) {
     write(dest, buffer, bytesRead);
   }
- 
+ chmod("/tmp/temp/busybox", 0755);
+  //fsync(dest);
   close(src);
   close(dest);
   return 0;
@@ -103,20 +111,12 @@ int main(int argc, char *argv[])
   if (pipe(fd) == -1) {
     return 1;
   }
+// create temporary directory
+    mkdir(TEMP_DIR, 0755);
+    //char * bin_path = find_binary(argv[3]);
+    copy_file("/bin/busybox", "/tmp/temp/busybox");
+    //free(bin_path);
 
-  char * shell_args[4];
-  shell_args[0] = "sh";
-  shell_args[1] = "-c";
-  shell_args[3] = NULL;
-
-  // assemble the full command
-  char full_cmd[1024] = "/";
-  strcat(full_cmd, argv[3]);
-  for (int i = 4; i < argc; i++) {
-    strcat(full_cmd, " ");
-    strcat(full_cmd, argv[i]);
-  }
-  shell_args[2] = full_cmd;
 
   int child_pid = fork();
   if (child_pid == -1) {
@@ -131,21 +131,6 @@ int main(int argc, char *argv[])
     dup2(fd[1], STDOUT_FILENO); // make stdout point to the write end of the pipe
     dup2(fd[1], STDERR_FILENO);
 
-    // create temporary directory
-    mkdir(TEMP_DIR, 0755);
-    char * bin_path = find_binary(argv[3]);
-    copy_file(bin_path, "/tmp/temp/exec");
-    
-    free(bin_path);
-
-
-    char * args[argc - 2];
-    args[0] = "/exec";
-    for (int i = 4; i < argc; i++) {
-      args[i - 2] = argv[i];
-    }
-    args[argc - 3] = NULL;
-    execv("/tmp/temp/exec", argv + 3);
     
     // call chroot to change root to temporary directory
     if (chroot(TEMP_DIR) != 0) {
@@ -158,13 +143,22 @@ int main(int argc, char *argv[])
       return 1;
     }
     
-    // char * args[argc - 2];
-    // args[0] = "/exec";
-    // for (int i = 4; i < argc; i++) {
-    //   args[i - 2] = argv[i];
-    // }
-    // args[argc - 3] = NULL;
-    // execv("/exec", args);
+    // Right after chdir("/"), add:
+    char * args[argc - 2];
+    args[0] = "busybox";
+    for (int i = 1; i < argc - 3; i++) {
+      args[i] = argv[i + 3];
+    }
+    args[argc - 3] = NULL;
+	/*
+    for (int i = 0; i < argc - 2; i++) {
+	    printf("args[%d]: %s\n", i, args[i]);
+    }*/
+    //char * simple_args[] = {"busybox", "--help", NULL};
+    execv("/busybox", args);
+    perror("execv");
+    printf("execv() failed.\n");
+    exit(1);
 
   }
   else
@@ -178,7 +172,6 @@ int main(int argc, char *argv[])
       printf("%s", buffer);
     }
     close(fd[0]);
-    
     int status;
     waitpid(child_pid, &status, 0);
     return WEXITSTATUS(status);
