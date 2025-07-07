@@ -6,7 +6,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define TEMP_DIR "/tmp/temp/"
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
+
 
 char * find_binary(const char *binary) {
   char * path_env = getenv("PATH"); // returns colon separated string like /user/local/bin:/usr/bin:/bin
@@ -34,42 +36,60 @@ char * find_binary(const char *binary) {
 }
 
 
+// int copy_file(const char *src_path, const char *dest_path)
+// {
+//   FILE * src = fopen(src_path, "rb");
+//   FILE * dest = fopen(dest_path, "wb");
+//   if (!src) {
+//     printf("Source file: %s\n", src_path);
+//     perror("Failed to open source file");
+//     return 1;
+//   }
+//   if (!dest) {
+//     perror("Failed to open destination file.");
+//     return 1;
+//   }
+  
+//   char buffer[4096];
+//   size_t bytesRead;
+//   while ((bytesRead = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+//     if (fwrite(buffer, sizeof(char), bytesRead, dest) != bytesRead) {
+//       perror("Error while writing to destination file.");
+//       fclose(src);
+//       fclose(dest);
+//       unlink(dest_path); // get rid of the incomplete file
+//       return 1;
+//     }
+//   }
+
+//   if (chmod(dest_path, 0755) != 0) {
+//     perror("Failed to set file permissions");
+//     return 1;
+//   } // make sure the copied file is executable
+
+//   fclose(src);
+//   fclose(dest);
+//   return 0;
+// }
 int copy_file(const char *src_path, const char *dest_path)
 {
-  FILE * src = fopen(src_path, "rb");
-  FILE * dest = fopen(dest_path, "wb");
-  if (!src) {
-    printf("Source file: %s\n", src_path);
-    perror("Failed to open source file");
-    return 1;
+  int src = open(src_path, O_RDONLY);
+  int dest = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  if (dest == -1) {
+    perror("Couldn't open file.");
+    return -1;
   }
-  if (!dest) {
-    perror("Failed to open destination file.");
-    return 1;
-  }
-  
   char buffer[4096];
   size_t bytesRead;
-  while ((bytesRead = fread(buffer, 1, sizeof(buffer), src)) > 0) {
-    if (fwrite(buffer, sizeof(char), bytesRead, dest) != bytesRead) {
-      perror("Error while writing to destination file.");
-      fclose(src);
-      fclose(dest);
-      unlink(dest_path); // get rid of the incomplete file
-      return 1;
-    }
+  while ((bytesRead = read(src, buffer, sizeof(buffer))) > 0) {
+    write(dest, buffer, bytesRead);
   }
-
-  if (chmod(dest_path, 0755) != 0) {
-    perror("Failed to set file permissions");
-    return 1;
-  } // make sure the copied file is executable
-
-  fclose(src);
-  fclose(dest);
+ 
+  close(src);
+  close(dest);
   return 0;
-}
 
+}
 
 
 int main(int argc, char *argv[])
@@ -112,39 +132,39 @@ int main(int argc, char *argv[])
     dup2(fd[1], STDERR_FILENO);
 
     // create temporary directory
-    char dir_path[128] = "/tmp/container-XXXXXX";
-    if (mkdtemp(dir_path) == NULL) { // failed to create new temporary directory
-      return 1;
-    }
-    char temp_binary_path[128] = {0}; // path of the binary inside the temporary directory (dir_path + binary)
-    strcpy(temp_binary_path, dir_path);
-    temp_binary_path[strlen(temp_binary_path)] = '/';
-    strncat(temp_binary_path, argv[3], sizeof(temp_binary_path) - 1); // concatenate the binary to the end
-
-    // find and copy the binaries to temporary directory
+    mkdir(TEMP_DIR, 0755);
     char * bin_path = find_binary(argv[3]);
+    copy_file(bin_path, "/tmp/temp/exec");
     
-    if (copy_file(bin_path, temp_binary_path) != 0) {
-      printf("Failed to copy file.");
-      return 1;
-    }
     free(bin_path);
-    char *direct_args[] = {temp_binary_path, "TEST", NULL};
-    execv(temp_binary_path, direct_args);
 
+
+    char * args[argc - 2];
+    args[0] = "/exec";
+    for (int i = 4; i < argc; i++) {
+      args[i - 2] = argv[i];
+    }
+    args[argc - 3] = NULL;
+    execv("/tmp/temp/exec", argv + 3);
+    
     // call chroot to change root to temporary directory
-    if (chroot(dir_path) != 0) {
+    if (chroot(TEMP_DIR) != 0) {
       printf("chroot failed.\n");
       return 1;
     }
-    
     // call chdir to set working directory inside chroot
     if (chdir("/") != 0) {
       printf("chdir failed.\n");
       return 1;
     }
-
-    execvp("sh", shell_args);
+    
+    // char * args[argc - 2];
+    // args[0] = "/exec";
+    // for (int i = 4; i < argc; i++) {
+    //   args[i - 2] = argv[i];
+    // }
+    // args[argc - 3] = NULL;
+    // execv("/exec", args);
 
   }
   else
