@@ -22,13 +22,13 @@ RUN apk add --no-cache --upgrade 'curl>=7.66'
 RUN apk add --no-cache --upgrade 'curl-dev>=7.66'
 
 WORKDIR /app
-COPY app/ /app/app/
+COPY app/ /app/
 COPY your_docker.sh /app/your_docker.sh
 COPY bin/busybox /bin/busybox
 
 RUN chmod +x /app/your_docker.sh
 RUN chmod +x /bin/busybox
-RUN gcc -o mydocker app/main.c
+RUN gcc -o mydocker main.c
 
 ENTRYPOINT ["/app/your_docker.sh"] 
 #always keep last line

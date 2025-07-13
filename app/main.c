@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
+#include <errno.h>
 #define TEMP_DIR "/tmp/temp/"
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 
@@ -13,7 +13,7 @@
 char * find_binary(const char *binary) {
   char * path_env = getenv("PATH"); // returns colon separated string like /user/local/bin:/usr/bin:/bin
   if (!path_env) return NULL;
-  
+
   char * path_copy = strdup(path_env); // get a copy of the path
   char *dir = strtok(path_copy, ":");
 
@@ -22,7 +22,7 @@ char * find_binary(const char *binary) {
     char * full_path = malloc(path_size * sizeof(char));
 
     snprintf(full_path, path_size, "%s/%s", dir, binary); // assemble the potential path to binary
-    
+
     if (access(full_path, X_OK) == 0) { // file exists and is executable
       free(path_copy);
       return full_path;
@@ -49,7 +49,7 @@ char * find_binary(const char *binary) {
 //     perror("Failed to open destination file.");
 //     return 1;
 //   }
-  
+
 //   char buffer[4096];
 //   size_t bytesRead;
 //   while ((bytesRead = fread(buffer, 1, sizeof(buffer), src)) > 0) {
@@ -81,21 +81,38 @@ int copy_file(const char *src_path, const char *dest_path)
   }
   int src = open(src_path, O_RDONLY);
   if (src == -1) {
-     printf("Can't open src file.\n");
-     perror("Couldn't open src file.");
-     close(dest);
-     return -1;
+    printf("Can't open src file.\n");
+    perror("Couldn't open src file.");
+    close(dest);
+    return -1;
   }
   char buffer[4096];
   ssize_t bytesRead;
   while ((bytesRead = read(src, buffer, sizeof(buffer))) > 0) {
     write(dest, buffer, bytesRead);
   }
- chmod("/tmp/temp/busybox", 0755);
+  chmod("/tmp/temp/bin/busybox", 0755);
   //fsync(dest);
   close(src);
   close(dest);
   return 0;
+
+}
+
+
+int createDirectories()
+{
+  char path[512];
+  const char* dirs[] = {"bin", "etc", "proc", "dev", NULL};
+  
+  for (int i = 0; dirs[i] != NULL; i++) {
+    snprintf(path, sizeof(path), "%s/%s", TEMP_DIR, dirs[i]);
+    if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+      perror("Could not create directory");
+      return -1;
+    }
+
+  }
 
 }
 
@@ -111,11 +128,15 @@ int main(int argc, char *argv[])
   if (pipe(fd) == -1) {
     return 1;
   }
-// create temporary directory
-    mkdir(TEMP_DIR, 0755);
-    //char * bin_path = find_binary(argv[3]);
-    copy_file("/bin/busybox", "/tmp/temp/busybox");
-    //free(bin_path);
+  // create temporary directory
+  mkdir(TEMP_DIR, 0755);
+  if (createDirectories() == -1) {
+    perror("Error while creating directories.");
+    return 1;
+  }
+  //char * bin_path = find_binary(argv[3]);
+  copy_file("/bin/busybox", "/tmp/temp/bin/busybox");
+  //free(bin_path);
 
 
   int child_pid = fork();
@@ -131,7 +152,7 @@ int main(int argc, char *argv[])
     dup2(fd[1], STDOUT_FILENO); // make stdout point to the write end of the pipe
     dup2(fd[1], STDERR_FILENO);
 
-    
+
     // call chroot to change root to temporary directory
     if (chroot(TEMP_DIR) != 0) {
       printf("chroot failed.\n");
@@ -142,7 +163,7 @@ int main(int argc, char *argv[])
       printf("chdir failed.\n");
       return 1;
     }
-    
+
     // Right after chdir("/"), add:
     char * args[argc - 2];
     args[0] = "busybox";
@@ -150,12 +171,12 @@ int main(int argc, char *argv[])
       args[i] = argv[i + 3];
     }
     args[argc - 3] = NULL;
-	/*
-    for (int i = 0; i < argc - 2; i++) {
-	    printf("args[%d]: %s\n", i, args[i]);
-    }*/
+    /*
+       for (int i = 0; i < argc - 2; i++) {
+       printf("args[%d]: %s\n", i, args[i]);
+       }*/
     //char * simple_args[] = {"busybox", "--help", NULL};
-    execv("/busybox", args);
+    execv("/bin/busybox", args);
     perror("execv");
     printf("execv() failed.\n");
     exit(1);
