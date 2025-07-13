@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -6,6 +7,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/mount.h>
+#include <sys/syscall.h>
+#include <sched.h>
+
+
 #define TEMP_DIR "/tmp/temp/"
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 
@@ -114,15 +120,17 @@ int createDirectories()
 
   }
 
+  return 0;
+
 }
 
 
 int main(int argc, char *argv[])
 {
-
+  
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);
-
+  
   char *command = argv[3];
   int fd[2];
   if (pipe(fd) == -1) {
@@ -139,7 +147,7 @@ int main(int argc, char *argv[])
   //free(bin_path);
 
 
-  int child_pid = fork();
+  int child_pid = syscall(SYS_clone, CLONE_NEWPID | SIGCHLD, NULL, NULL, NULL, NULL);
   if (child_pid == -1) {
     printf("Error forking!");
     return 1;
@@ -158,24 +166,21 @@ int main(int argc, char *argv[])
       printf("chroot failed.\n");
       return 1;
     }
+    
+    mount("proc", "/proc", "proc", 0, NULL);
     // call chdir to set working directory inside chroot
     if (chdir("/") != 0) {
       printf("chdir failed.\n");
       return 1;
     }
 
-    // Right after chdir("/"), add:
     char * args[argc - 2];
-    args[0] = "busybox";
-    for (int i = 1; i < argc - 3; i++) {
-      args[i] = argv[i + 3];
+    int size = argc - 2;
+    //args[0] = "busybox";
+    for (int i = 0; i < argc - 3; i++) {
+      args[i] = argv[i + 4];
     }
-    args[argc - 3] = NULL;
-    /*
-       for (int i = 0; i < argc - 2; i++) {
-       printf("args[%d]: %s\n", i, args[i]);
-       }*/
-    //char * simple_args[] = {"busybox", "--help", NULL};
+    args[size - 1] = NULL;
     execv("/bin/busybox", args);
     perror("execv");
     printf("execv() failed.\n");
