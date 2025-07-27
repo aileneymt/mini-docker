@@ -13,6 +13,8 @@
 
 
 #define TEMP_DIR "/tmp/temp/"
+#define IMAGE_ARG 3
+
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 
 
@@ -41,42 +43,6 @@ char * find_binary(const char *binary) {
 
 }
 
-
-// int copy_file(const char *src_path, const char *dest_path)
-// {
-//   FILE * src = fopen(src_path, "rb");
-//   FILE * dest = fopen(dest_path, "wb");
-//   if (!src) {
-//     printf("Source file: %s\n", src_path);
-//     perror("Failed to open source file");
-//     return 1;
-//   }
-//   if (!dest) {
-//     perror("Failed to open destination file.");
-//     return 1;
-//   }
-
-//   char buffer[4096];
-//   size_t bytesRead;
-//   while ((bytesRead = fread(buffer, 1, sizeof(buffer), src)) > 0) {
-//     if (fwrite(buffer, sizeof(char), bytesRead, dest) != bytesRead) {
-//       perror("Error while writing to destination file.");
-//       fclose(src);
-//       fclose(dest);
-//       unlink(dest_path); // get rid of the incomplete file
-//       return 1;
-//     }
-//   }
-
-//   if (chmod(dest_path, 0755) != 0) {
-//     perror("Failed to set file permissions");
-//     return 1;
-//   } // make sure the copied file is executable
-
-//   fclose(src);
-//   fclose(dest);
-//   return 0;
-// }
 int copy_file(const char *src_path, const char *dest_path)
 {
   int dest = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, 0755);
@@ -106,6 +72,7 @@ int copy_file(const char *src_path, const char *dest_path)
 }
 
 
+
 int createDirectories()
 {
   char path[512];
@@ -124,12 +91,58 @@ int createDirectories()
 
 }
 
+void getImageNameAndTag(char * imageArg, char ** imageName, char ** imageTag) {
+  *imageName = strtok(imageArg, ":");
+  if (*imageName == NULL) {
+    perror("Invalid image name argument.");
+    exit(1);
+  }
+  *imageTag = strtok(NULL, ":");
+  if (*imageTag == NULL) {
+    perror("Invalid image tag argument.");
+    exit(1);
+  }
+}
+
+
+void getDockerAuthToken(char **token, char * imageArg) {
+  char * imageName;
+  char * imageTag;
+  getImageNameAndTag(imageArg, &imageName, &imageTag);
+
+  char cmd[512];
+  snprintf(cmd, sizeof(cmd),
+    "curl -s \"https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/%s:pull\"", imageName);
+  FILE *fp = popen(cmd, "r"); // opening pipe to read output of the curl commnd
+
+  if (fp == NULL) {
+    perror("popen failed.");
+    exit(1);
+  }
+  char buffer[4096];
+  size_t bytesRead = fread(buffer, sizeof(char), sizeof(buffer) - 1, fp);
+  buffer[bytesRead] = '\0';
+  pclose(fp);
+  *token = strstr(buffer, "\"token\":\"");
+  if (*token == NULL) {
+    perror("Cannot find token.");
+    exit(1);
+  }
+
+  *token += strlen("\"token\":\"");
+  char * end = strchr(*token, '\"');
+  *end = '\0';
+
+}
 
 int main(int argc, char *argv[])
 {
   
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);
+ 
+  char * token;
+  getDockerAuthToken(&token, argv[IMAGE_ARG]);
   
   char *command = argv[3];
   int fd[2];
