@@ -105,10 +105,7 @@ void getImageNameAndTag(char * imageArg, char ** imageName, char ** imageTag) {
 }
 
 
-void getDockerAuthToken(char **token, char * imageArg) {
-  char * imageName;
-  char * imageTag;
-  getImageNameAndTag(imageArg, &imageName, &imageTag);
+void getDockerAuthToken(char **token, char * imageName, char * imageTag) {
 
   char cmd[512];
   snprintf(cmd, sizeof(cmd),
@@ -135,14 +132,63 @@ void getDockerAuthToken(char **token, char * imageArg) {
 
 }
 
+
+void getManifest(char * token, char * imageName, char * imageTag) {
+  
+  //char cmd[4096] = {0};
+  char cmd[4096];
+  memset(cmd, 0, sizeof(cmd));
+  printf("Token: <%s>\n", token);
+  snprintf(cmd, sizeof(cmd),
+    "curl -s -H \"Authorization: Bearer %s\" "
+    "-H \"Accept: application/vnd.docker.distribution.manifest.v2+json\" "
+    "\"https://registry-1.docker.io/v2/library/%s/manifests/%s\"", token, imageName, imageTag);
+  
+  printf("CMD: <%s>\n", cmd);
+  FILE *fp = popen(cmd, "r"); // opening pipe to read output of the curl commnd
+
+  if (fp == NULL) { 
+    perror("popen failed.");
+    exit(1);
+  }
+  
+  char * buffer = malloc(sizeof(char) * 1024);
+  int bufferSize = 1024;
+  int responseLen = 0;
+  size_t bytesRead = 0; 
+  while ((bytesRead = fread(buffer, sizeof(char), bufferSize, fp)) != 0) {
+    if (bytesRead == sizeof(buffer)) { // we read to the max, need to expand
+      bufferSize *= 2;
+      char * temp = malloc(sizeof(char) * bufferSize);
+      memcpy(temp, buffer, bytesRead);
+      free(buffer);
+      buffer = temp;
+    }
+    responseLen += bytesRead;
+  }
+  buffer[responseLen] = '\0';
+  printf("%s\n", buffer);
+  pclose(fp);
+  free(buffer);
+
+}
+
+
+
 int main(int argc, char *argv[])
 {
   
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);
  
+  char * imageName;
+  char * imageTag;
   char * token;
-  getDockerAuthToken(&token, argv[IMAGE_ARG]);
+  getImageNameAndTag(argv[IMAGE_ARG], &imageName, &imageTag);
+  getDockerAuthToken(&token, imageName, imageTag);
+  printf("Token: <%s>\n", token);
+  getManifest(token, imageName, imageTag);
+  
   
   char *command = argv[3];
   int fd[2];
