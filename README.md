@@ -1,3 +1,5 @@
+**Check wiki for my personal implementation details!
+**
 This is a starting point for C solutions to the
 ["Build Your Own Docker" Challenge](https://codecrafters.io/challenges/docker).
 
